@@ -58,7 +58,7 @@ int calc_number_of_words(const char *str) {
 			"xorl %%edx, %%edx;"             "\n\t"
 			"cmpb $32, %%ah;"                "\n\t"
 			
-			"jg 98f;"   "\n\t"               "\n\t"
+			"jne 98f;"   "\n\t"               "\n\t"
 				"incl %[ans];"               "\n\t"
 				"subl %%ecx, %[ans];"        "\n\t"
 				
@@ -113,7 +113,7 @@ int calc_number_of_words(const char *str) {
 			"xorl %%edx, %%edx;"             "\n\t"
 			"cmpb $32, %%ah;"                "\n\t"
 			
-			"jg 98f;"                        "\n\t"
+			"jne 98f;"                        "\n\t"
 				"incl %[ans];"               "\n\t"
 				"subl %%ecx, %[ans];"        "\n\t"
 				

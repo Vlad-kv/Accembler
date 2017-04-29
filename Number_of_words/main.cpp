@@ -27,7 +27,7 @@ int calc_number_of_words_simple(const char *str) {
 	return ans;
 }
 
-int calc_number_of_words(char *str) {
+int calc_number_of_words(const char *str) {
 	__m128i spaces, zero, xmm0, xmm1;
 	char c_spaces[16];
 	for (int w = 0; w < 16; w++) {
@@ -58,7 +58,7 @@ int calc_number_of_words(char *str) {
 			"xorl %%edx, %%edx;"             "\n\t"
 			"cmpb $32, %%ah;"                "\n\t"
 			
-			"je 98f;"   "\n\t"               "\n\t"
+			"jg 98f;"   "\n\t"               "\n\t"
 				"incl %[ans];"               "\n\t"
 				"subl %%ecx, %[ans];"        "\n\t"
 				
@@ -146,20 +146,42 @@ int main() {
     
     srand(time(0));
     
-	for (w = 0; w < 1000; w++) {
-		if (rand() % 2) {
-			s1[w] = ' ';
-		} else {
-			s1[w] = 'a';
-		}
-	}
-	for (w = 1000; w < 100000; w++) {
-		s1[w] = s1[w - 35];
-	}
-	s1[100000] = 0;
+//    cout << calc_number_of_words(" ");
     
-    for (w = 0; w < 100000; w++) {
-		calc_number_of_words(s1);
+    
+    for (int test = 0; test < 1000; test++) {
+		int len = 500;
+		for (w = 0; w < len; w++) {
+			if (rand() % 2) {
+				s1[w] = ' ';
+			} else {
+				s1[w] = 'a';
+			}
+		}
+		s1[len] = 0;
+		
+		for (int e = 0; e < len; e++) {
+			int res_1 = calc_number_of_words(s1 + e);
+			int res_2 = calc_number_of_words_simple(s1 + e);
+			
+			if (res_1 != res_2) {
+				cout << "WA " << res_1 << " " << res_2 << "\n";
+				cout << s1 + e << "|\n";
+				return 0;
+			}
+		}
     }
+	
+	cout << "OK\n";
+	
+	
+//	for (w = 1000; w < 100000; w++) {
+//		s1[w] = s1[w - 35];
+//	}
+//	s1[100000] = 0;
+//    
+//    for (w = 0; w < 100000; w++) {
+//		calc_number_of_words(s1);
+//    }
     return 0;
 }

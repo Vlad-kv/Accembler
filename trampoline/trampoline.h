@@ -4,9 +4,11 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <vector>
 #include <cmath>
 
 typedef const char* op_t;
+
 extern op_t operations[];
 
 extern op_t jmp_rax;
@@ -24,6 +26,7 @@ extern op_t mov_rsi_in_rax;
 extern op_t mov_rax_at_addres_rdi; // movq %%rax, (%%rdi);
 extern op_t mov_rdi_at_addres_rsp;
 extern op_t mov_r11_at_addres_rsp;
+extern op_t mov_rdi_at_addres_rsp_m8;
 
 extern op_t mov_in_rdi_const_8b;
 extern op_t mov_in_rax_const_8b;
@@ -35,7 +38,6 @@ extern op_t mov_at_addres_rdi_in_rax; // movq (%%rdi), %%rax;
 extern op_t mov_at_addres_r8_in_r9; // movq (%%r8), %%r9;
 extern op_t mov_at_addres_rsp_in_rdi;
 extern op_t mov_at_addres_rsi_in_r11;
-
 
 extern op_t pop_rax;
 extern op_t pop_rdi;
@@ -111,11 +113,45 @@ struct trampoline
     T* get() const;
 };
 
+class trampoline_work_with_memory {
+private:
+	static char** root;
+	static const int num_of_pages = 1;
+	static const int trampoline_size = 113;
+
+	static void* alloc_new_block() {
+		std::cout << "allocating new block\n";
+		char* block = (char*)mmap(nullptr, 4096 * num_of_pages, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    	char** prev = 0;
+    	for (int w = 0; w + trampoline_size < 4096 * num_of_pages; w += trampoline_size) {
+    		*(void**)(block + w) = 0;
+    		if (prev != 0) {
+    			*prev = block + w;
+    		}
+    		prev = (char**)(block + w);
+    	}
+        return block;
+	}
+public:
+	static void* get_ptr() {
+		if (root == nullptr) {
+			root = (char**)alloc_new_block();
+		}
+		std::cout << "after alloc\n";
+		void* res = (void*)root;
+		root = ((char**)(*root));
+		return res;
+	}
+	static void free_ptr(void *ptr) {
+		*(void**)ptr = (void*)root;
+		root = (char**)ptr;
+	}
+};
+
 template <typename R, typename... Args>
 struct trampoline<R (Args...)> {
+static_assert(args_info<Args...>::is_valid, "Arguments with size > 8 bytes are unsupported.");
 private:
-    static const int num_of_pages = 1;
-
     static void add(char* &ptr, const char* operation) {
         for (const char *i = operation; *i; ++i) {
             *(ptr++) = *i;
@@ -141,13 +177,8 @@ public:
         , caller(&do_call<F>)
         , deleter(delete_obj<F>)
          {
-
-        if (!args_info<Args...>::is_valid) {
-            delete (F*)func_obj;
-            throw std::string("Arguments with size > 8 bytes are unsupported.");
-        }
-        
-        code = mmap(nullptr, 4096, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        //code = mmap(nullptr, 4096, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        code = trampoline_work_with_memory::get_ptr();
         char *p = (char*)code;
 
         if (args_info<Args...>::num_not_fract_args >= 6) {
@@ -176,9 +207,7 @@ public:
             {
                 add_4(p, add_rsp_const_4b, 8);
                 add(p, mov_at_addres_rsp_in_rdi);
-                add_4(p, sub_rsp_const_4b, 8);
-                add(p, mov_rdi_at_addres_rsp);
-                add_4(p, add_rsp_const_4b, 8);
+                add(p, mov_rdi_at_addres_rsp_m8);
                 add(p, jmp);
                 *p = (label0 - (p + 1));
                 p++;
@@ -205,7 +234,7 @@ public:
 
             add(p, ret);
 
-            std::cout << (int)(p - (char*)code) << "\n\n";
+            //std::cout << (int)(p - (char*)code) << "\n\n";
         } else {
             for (int w = args_info<Args...>::num_not_fract_args - 1; w >= 0; w--) {
                 add(p, operations[w]);
@@ -229,7 +258,8 @@ public:
     }
     
     ~trampoline() {
-        munmap(code, 4096);
+        //munmap(code, 4096);
+        trampoline_work_with_memory::free_ptr(code);
         deleter(func_obj);
     }
     
@@ -243,8 +273,6 @@ private:
     void* code;
     R (*caller)(void* obj, Args ...args);
     void (*deleter)(void*);
-
-    //static vector<int> 
 };
 
 #endif //TRAMPOLINE_H
